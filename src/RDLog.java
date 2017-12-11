@@ -6,6 +6,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -41,11 +42,12 @@ public class RDLog {
 	private File columnFile;
 	private File dataFile;
 	private BufferedWriter out;
-	
+
 	private boolean openTopicRegistration;
 
 	private List<RDObject> namespace;
 	private List<RDTopic> topics;
+	private HashMap<String, Double> publishedData;
 
 	private RDLog() {
 		rootDir = new File(DIRECTORY);
@@ -68,7 +70,7 @@ public class RDLog {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		
+
 		dataFile = new File(sessionDir, DATA_LOG);
 		try {
 			assert (dataFile.createNewFile());
@@ -84,15 +86,20 @@ public class RDLog {
 		openTopicRegistration = true;
 		namespace = new ArrayList<>();
 		topics = new ArrayList<>();
+		publishedData = new HashMap<>();
 	}
-	
+
 	public void close() {
 		try {
 			out.close();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+	}
+
+	public void publishData(String key, double value) {
+		assert (publishedData.containsKey(key));
+		publishedData.replace(key, value);
 	}
 
 	public String getSessionID() {
@@ -114,11 +121,21 @@ public class RDLog {
 		appendLine(columnFile, "\"" + key + "\", \"" + topicInfo.getUnit() + "\", \"" + topicInfo.getDesc() + "\"");
 	}
 
+	public void registerSubscribedTopic(String key, RDTopicInfo topicInfo, InferMethod inferMethod) {
+		assert (openTopicRegistration);
+		assert (!isInNamespace(key));
+		RDSubscribedTopic topicObj = new RDSubscribedTopic(key, topicInfo, inferMethod);
+		namespace.add(topicObj);
+		appendLine(columnFile, "\"" + key + "\", \"" + topicInfo.getUnit() + "\", \"" + topicInfo.getDesc() + "\"");
+	}
+
 	public void endTopicRegistration() {
 		if (!openTopicRegistration)
 			return;
 		openTopicRegistration = false;
 		namespace.stream().filter((o) -> (o instanceof RDTopic)).forEach((t) -> topics.add((RDTopic) t));
+		topics.stream().filter((o) -> (o instanceof RDSubscribedTopic))
+				.forEach((t) -> publishedData.put(t.getKey(), -1d));
 		String columns[] = Arrays.copyOf(topics.stream().map(RDTopic::getKey).toArray(), topics.size(), String[].class);
 		String header = "\"" + String.join("\", \"", columns) + "\"";
 		try {
@@ -128,10 +145,13 @@ public class RDLog {
 			e.printStackTrace();
 		}
 	}
-	
+
 	public void logTopics() {
+		topics.stream().filter((o) -> (o instanceof RDSubscribedTopic)).map((o) -> (RDSubscribedTopic) o)
+				.forEach((o) -> o.value = publishedData.get(o.getKey()));
+
 		StringBuilder builder = new StringBuilder();
-		for(int i = 0; i < topics.size(); i++) {
+		for (int i = 0; i < topics.size(); i++) {
 			builder.append("" + topics.get(i).getValue() + ((i == topics.size() - 1) ? "\n" : ", "));
 		}
 		String line = builder.toString();
@@ -141,6 +161,10 @@ public class RDLog {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+
+		topics.stream().filter((o) -> (o instanceof RDSubscribedTopic)).map((o) -> (RDSubscribedTopic) o)
+				.filter((o) -> o.getInferMethod() == InferMethod.Reset).map(RDSubscribedTopic::getKey)
+				.forEach((k) -> publishedData.replace(k, -1d));
 	}
 
 	private boolean isInNamespace(String key) {
@@ -155,7 +179,7 @@ public class RDLog {
 		do {
 			candidate = "";
 			for (int i = 0; i < SESSION_ID_LEN; i++)
-				candidate += SESSION_ID_CHARS[(int) (Math.random() * (double) SESSION_ID_CHARS.length)];
+				candidate += SESSION_ID_CHARS[(int) (Math.random() * SESSION_ID_CHARS.length)];
 
 		} while (Arrays.asList(rootDir.list()).contains(candidate));
 		return candidate;

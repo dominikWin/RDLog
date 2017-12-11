@@ -1,0 +1,4 @@
+enum InferMethod {
+	Retain,
+	Reset,
+}
