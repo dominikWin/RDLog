@@ -8,7 +8,7 @@ import java.util.Date;
 import java.util.Optional;
 
 public class RDLog {
-	private static final String DIRECTORY = "log/";
+	private static String DIRECTORY = "log/";
 	private static final char[] SESSION_ID_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".toCharArray();
 	private static final int SESSION_ID_LEN = 3;
 	private static final String SESSION_LOG = "sessions.csv";
@@ -24,6 +24,10 @@ public class RDLog {
 		return instance.get();
 	}
 
+	public static void setDirectory(String dir) {
+		DIRECTORY = dir;
+	}
+
 	private String sessionID;
 	private File sessionDir;
 	private File rootDir;
@@ -34,6 +38,10 @@ public class RDLog {
 		sessionDir = new File(rootDir, sessionID);
 		assert (sessionDir.mkdirs());
 		logSession();
+	}
+
+	public String getSessionID() {
+		return sessionID;
 	}
 
 	private String genSessionID() {
